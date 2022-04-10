@@ -1,0 +1,254 @@
+type: edu
+files:
+- name: src/client/Main.java
+  visible: true
+  text: |
+    package client;
+
+    public class Main {
+
+        public static void main(String[] args) {
+            System.out.println("Hello, world!");
+        }
+    }
+  learner_created: false
+- name: src/server/Main.java
+  visible: true
+  text: |
+    package server;
+
+    public class Main {
+
+        public static void main(String[] args) {
+            System.out.println("Hello, world!");
+        }
+    }
+  learner_created: false
+- name: test/JsonDatabaseTest.java
+  visible: false
+  text: |
+    import org.hyperskill.hstest.dynamic.DynamicTest;
+    import org.hyperskill.hstest.stage.StageTest;
+    import org.hyperskill.hstest.testcase.CheckResult;
+    import org.hyperskill.hstest.testing.TestedProgram;
+
+    public class JsonDatabaseTest extends StageTest<String> {
+
+        private static final String CORRECT_SERVER_OUTPUT =
+            "Server started!\n" +
+                "Received: Give me a record # N\n" +
+                "Sent: A record # N was sent!";
+
+        private static final String CORRECT_CLIENT_OUTPUT =
+            "Client started!\n" +
+                "Sent: Give me a record # N\n" +
+                "Received: A record # N was sent!";
+
+        @DynamicTest(order = 1)
+        CheckResult test() {
+
+            TestedProgram server = new TestedProgram("server");
+            server.startInBackground();
+
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+
+            String serverOutput = server.getOutput().trim();
+
+            if (!serverOutput.trim().equals("Server started!")) {
+                return CheckResult.wrong("Server output should be 'Server started!' until a client connects!");
+            }
+
+            TestedProgram client = new TestedProgram("client");
+
+            String clientOutput = client.start();
+            serverOutput += "\n" + server.getOutput();
+
+            String[] serverOutputLines = serverOutput.split("\n");
+
+            if (serverOutputLines.length != 3) {
+                return CheckResult.wrong("After the client connects to the server, the server output should contain 3 lines!");
+            }
+
+            String serverOutputLastLine = serverOutputLines[serverOutputLines.length - 1];
+
+            if (!serverOutputLastLine.contains("Sent: A record #") || !serverOutputLastLine.contains("was sent!")) {
+                return CheckResult.wrong("Server output after client connects to the server should be:\n"
+                    + CORRECT_SERVER_OUTPUT + "\n\nWhere N is some number.\n\nYour output:\n" + serverOutput);
+            }
+
+            String[] clientOutputLines = clientOutput.split("\n");
+
+            if (clientOutputLines.length != 3) {
+                return CheckResult.wrong("After the client connects to the server, the client output should contain 3 lines!");
+            }
+
+            String clientOutputLastLine = clientOutputLines[clientOutputLines.length - 1];
+
+            if (!clientOutputLastLine.contains("Received: A record #") || !clientOutputLastLine.contains("was sent!")) {
+                return CheckResult.wrong("Client output after client connects to the server should be:\n"
+                    + CORRECT_CLIENT_OUTPUT + "\n\nWhere N is some number.\n\nYour output:\n" + clientOutput);
+            }
+
+            return CheckResult.correct();
+        }
+    }
+  learner_created: false
+- name: src/server/Status.java
+  visible: true
+  text: |
+    package server;
+
+    public enum Status {
+        ERROR,
+        OK
+    }
+  learner_created: true
+- name: src/server/Database.java
+  visible: true
+  text: |
+    package server;
+
+    import java.util.ArrayList;
+    import java.util.Collections;
+    import java.util.List;
+
+    public class Database {
+        private List<String> cells;
+
+        public Database() {
+            cells = new ArrayList<>(Collections.nCopies(100, ""));
+
+        }
+
+        public String set(int index, String value) {
+            if (!isValid(index)) Status.ERROR.name();
+
+            cells.add(index - 1, value);
+            return Status.OK.name();
+
+        }
+
+        public String get(int index) {
+            if (!isValid(index))
+                return Status.ERROR.name();
+            if (cells.get(index - 1).isEmpty())
+                return Status.ERROR.name();
+
+            return cells.get(index - 1);
+
+        }
+
+        public String delete(int index) {
+            if (!isValid(index))
+                return Status.ERROR.name();
+                cells.set(index - 1, "");
+                return Status.OK.name();
+        }
+
+
+        private boolean isValid(int index) {
+            return index > 0 && index < 101;
+        }
+    }
+  learner_created: true
+- name: src/server/DatabaseManager.java
+  visible: true
+  text: |
+    package server;
+
+    import java.util.Scanner;
+    import java.util.regex.Matcher;
+    import java.util.regex.Pattern;
+
+    public class DatabaseManager {
+        private Database database = new Database();
+        private final Scanner scanner = new Scanner(System.in);
+
+        public void init() {
+            Pattern pattern = Pattern.compile("(get|set|delete|exit){1}\\s*(\\d+)*\\s*(.+)*");
+
+            while (true) {
+                String input = scanner.nextLine();
+                Matcher matcher = pattern.matcher(input);
+                String operation = "";
+                int index = -1;
+                String content = "";
+                if(matcher.find()){
+                    operation = matcher.group(1);
+                    if (operation.equals("exit")) break;
+
+                    index = Integer.parseInt(matcher.group(2));
+                    content = matcher.group(3);
+                }
+
+                switch (operation) {
+                    case "get":
+                        System.out.println(database.get(index));
+                        break;
+                    case "delete":
+                        System.out.println(database.delete(index));
+                        break;
+                    case "set":
+                        System.out.println(database.set(index, content));
+                        break;
+                }
+            }
+        }
+    }
+  learner_created: true
+- name: src/server/Response.java
+  visible: true
+  text: |
+    package server;
+
+    public class Response {
+        private String content;
+        private Status status;
+
+        public String getContent() {
+            return content;
+        }
+
+        public Response setContent(String content) {
+            this.content = content;
+            return this;
+        }
+
+        public Status getStatus() {
+            return status;
+        }
+
+        public Response setStatus(Status status) {
+            this.status = status;
+            return this;
+        }
+    }
+  learner_created: true
+- name: src/server/Type.java
+  visible: true
+  text: |
+    package server;
+
+    public enum Operation {
+        SET,
+        GET,
+        DELETE,
+        EXIT
+    }
+  learner_created: true
+- name: src/server/Server.java
+  visible: true
+  learner_created: true
+- name: src/client/Client.java
+  visible: true
+  learner_created: true
+feedback_link: https://hyperskill.org/learn/step/5491#comment
+status: Solved
+feedback:
+  message: Congratulations!
+  time: Fri, 08 Apr 2022 04:23:56 UTC
+record: 2
